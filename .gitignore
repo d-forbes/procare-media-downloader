@@ -1,0 +1,9 @@
+# Downloaded media (large binary files)
+photos/
+videos/
+
+# Environment config (contains auth token)
+.env
+
+# macOS
+.DS_Store
