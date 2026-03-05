@@ -90,14 +90,6 @@ iso_to_exif_date() {
 }
 
 # ---------------------------------------------------------------------------
-# Helper: generate a filename-safe date prefix from ISO date
-# ---------------------------------------------------------------------------
-iso_to_filename_date() {
-  # ISO dates are always YYYY-MM-DDT..., so the date is always the first 10 chars
-  echo "${1:0:10}"
-}
-
-# ---------------------------------------------------------------------------
 # Download & tag a single photo
 # ---------------------------------------------------------------------------
 download_photo() {
@@ -236,9 +228,7 @@ total_pages=$(( (total_photos + per_page - 1) / per_page ))
 echo "   Found $total_photos photos across $total_pages pages ($per_page per page)"
 echo ""
 
-photo_counter=0
 total_photo_count=0
-prev_photo_date=""
 
 for page in $(seq 1 "$total_pages"); do
   echo "📄 Page $page / $total_pages"
@@ -253,16 +243,8 @@ for page in $(seq 1 "$total_pages"); do
   # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
   while IFS=$'\t' read -r id b64caption date_str main_url; do
     caption=$(base64 -d <<< "$b64caption")
-    date_prefix="${date_str:0:10}"
-
-    if [[ "$date_prefix" != "$prev_photo_date" ]]; then
-      photo_counter=0
-      prev_photo_date="$date_prefix"
-    fi
-
-    photo_counter=$((photo_counter + 1))
     total_photo_count=$((total_photo_count + 1))
-    filename="${date_prefix}_$(printf '%04d' $photo_counter).jpg"
+    filename="${date_str:0:10}_${id}.jpg"
     output_path="${PHOTO_DIR}/${filename}"
 
     download_photo "$main_url" "$date_str" "$caption" "$id" "$output_path"
@@ -293,8 +275,6 @@ echo "   Found $total_videos videos across $total_video_pages pages ($videos_per
 echo ""
 
 total_video_count=0
-video_counter=0
-prev_video_date=""
 
 for page in $(seq 1 "$total_video_pages"); do
   echo "📄 Video page $page / $total_video_pages"
@@ -309,16 +289,8 @@ for page in $(seq 1 "$total_video_pages"); do
   # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
   while IFS=$'\t' read -r id b64caption date_str video_url; do
     caption=$(base64 -d <<< "$b64caption")
-    date_prefix="${date_str:0:10}"
-
-    if [[ "$date_prefix" != "$prev_video_date" ]]; then
-      video_counter=0
-      prev_video_date="$date_prefix"
-    fi
-
-    video_counter=$((video_counter + 1))
     total_video_count=$((total_video_count + 1))
-    filename="${date_prefix}_$(printf '%04d' $video_counter).mp4"
+    filename="${date_str:0:10}_${id}.mp4"
     output_path="${VIDEO_DIR}/${filename}"
 
     download_video "$video_url" "$date_str" "$caption" "$id" "$output_path"
