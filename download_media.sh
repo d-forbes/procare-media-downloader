@@ -93,8 +93,8 @@ iso_to_exif_date() {
 # Helper: generate a filename-safe date prefix from ISO date
 # ---------------------------------------------------------------------------
 iso_to_filename_date() {
-  local iso_date="$1"
-  echo "$iso_date" | sed -E 's/^([0-9]{4})-([0-9]{2})-([0-9]{2})T.*/\1-\2-\3/'
+  # ISO dates are always YYYY-MM-DDT..., so the date is always the first 10 chars
+  echo "${1:0:10}"
 }
 
 # ---------------------------------------------------------------------------
@@ -118,6 +118,8 @@ download_photo() {
     rm -f "$output_path"
     return 1
   fi
+
+  sleep "$DELAY"  # Rate-limit only actual downloads
 
   # Verify we got an actual image (check for minimum file size)
   local filesize
@@ -175,6 +177,8 @@ download_video() {
     rm -f "$output_path"
     return 1
   fi
+
+  sleep "$DELAY"  # Rate-limit only actual downloads
 
   # Embed metadata
   local exif_date
@@ -246,15 +250,10 @@ for page in $(seq 1 "$total_pages"); do
     page_data=$(curl -sS --connect-timeout 30 --max-time 60 "${COMMON_HEADERS[@]}" "$PAGE_URL")
   fi
 
-  num_items=$(echo "$page_data" | jq '.photos | length')
-
-  for i in $(seq 0 $((num_items - 1))); do
-    id=$(echo "$page_data" | jq -r ".photos[$i].id")
-    caption=$(echo "$page_data" | jq -r ".photos[$i].caption // \"\"")
-    date_str=$(echo "$page_data" | jq -r ".photos[$i].date")
-    main_url=$(echo "$page_data" | jq -r ".photos[$i].main_url")
-
-    date_prefix=$(iso_to_filename_date "$date_str")
+  # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
+  while IFS=$'\t' read -r id b64caption date_str main_url; do
+    caption=$(base64 -d <<< "$b64caption")
+    date_prefix="${date_str:0:10}"
 
     if [[ "$date_prefix" != "$prev_photo_date" ]]; then
       photo_counter=0
@@ -267,8 +266,7 @@ for page in $(seq 1 "$total_pages"); do
     output_path="${PHOTO_DIR}/${filename}"
 
     download_photo "$main_url" "$date_str" "$caption" "$id" "$output_path"
-    sleep "$DELAY"
-  done
+  done < <(echo "$page_data" | jq -r '.photos[] | [.id, (.caption // "" | @base64), .date, .main_url] | @tsv')
 done
 
 echo ""
@@ -308,15 +306,10 @@ for page in $(seq 1 "$total_video_pages"); do
     page_data=$(curl -sS --connect-timeout 30 --max-time 60 "${COMMON_HEADERS[@]}" "$PAGE_URL")
   fi
 
-  num_items=$(echo "$page_data" | jq '.videos | length')
-
-  for i in $(seq 0 $((num_items - 1))); do
-    id=$(echo "$page_data" | jq -r ".videos[$i].id")
-    caption=$(echo "$page_data" | jq -r ".videos[$i].caption // \"\"")
-    date_str=$(echo "$page_data" | jq -r ".videos[$i].date")
-    video_url=$(echo "$page_data" | jq -r ".videos[$i].video_file_url")
-
-    date_prefix=$(iso_to_filename_date "$date_str")
+  # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
+  while IFS=$'\t' read -r id b64caption date_str video_url; do
+    caption=$(base64 -d <<< "$b64caption")
+    date_prefix="${date_str:0:10}"
 
     if [[ "$date_prefix" != "$prev_video_date" ]]; then
       video_counter=0
@@ -329,8 +322,7 @@ for page in $(seq 1 "$total_video_pages"); do
     output_path="${VIDEO_DIR}/${filename}"
 
     download_video "$video_url" "$date_str" "$caption" "$id" "$output_path"
-    sleep "$DELAY"
-  done
+  done < <(echo "$page_data" | jq -r '.videos[] | [.id, (.caption // "" | @base64), .date, .video_file_url] | @tsv')
 done
 
 echo ""
