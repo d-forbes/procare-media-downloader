@@ -242,7 +242,11 @@ for page in $(seq 1 "$total_pages"); do
 
   # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
   while IFS=$'\t' read -r id b64caption date_str main_url; do
-    caption=$(base64 -d <<< "$b64caption")
+    if [[ -n "$b64caption" ]]; then
+      caption=$(base64 -d <<< "$b64caption")
+    else
+      caption=""
+    fi
     total_photo_count=$((total_photo_count + 1))
     filename="${date_str:0:10}_${id}.jpg"
     output_path="${PHOTO_DIR}/${filename}"
@@ -288,7 +292,11 @@ for page in $(seq 1 "$total_video_pages"); do
 
   # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
   while IFS=$'\t' read -r id b64caption date_str video_url; do
-    caption=$(base64 -d <<< "$b64caption")
+    if [[ -n "$b64caption" ]]; then
+      caption=$(base64 -d <<< "$b64caption")
+    else
+      caption=""
+    fi
     total_video_count=$((total_video_count + 1))
     filename="${date_str:0:10}_${id}.mp4"
     output_path="${VIDEO_DIR}/${filename}"
