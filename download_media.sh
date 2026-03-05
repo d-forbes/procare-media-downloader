@@ -240,9 +240,11 @@ for page in $(seq 1 "$total_pages"); do
     page_data=$(curl -sS --connect-timeout 30 --max-time 60 "${COMMON_HEADERS[@]}" "$PAGE_URL")
   fi
 
-  # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
+  # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting.
+  # We use "_NONE_" as a sentinel for null/empty captions because bash read
+  # collapses consecutive tab delimiters, which shifts fields when a value is empty.
   while IFS=$'\t' read -r id b64caption date_str main_url; do
-    if [[ -n "$b64caption" ]]; then
+    if [[ "$b64caption" != "_NONE_" ]]; then
       caption=$(base64 -d <<< "$b64caption")
     else
       caption=""
@@ -252,7 +254,7 @@ for page in $(seq 1 "$total_pages"); do
     output_path="${PHOTO_DIR}/${filename}"
 
     download_photo "$main_url" "$date_str" "$caption" "$id" "$output_path"
-  done < <(echo "$page_data" | jq -r '.photos[] | [.id, (.caption // "" | @base64), .date, .main_url] | @tsv')
+  done < <(echo "$page_data" | jq -r '.photos[] | [.id, (if (.caption // "") == "" then "_NONE_" else (.caption | @base64) end), .date, .main_url] | @tsv')
 done
 
 echo ""
@@ -290,9 +292,11 @@ for page in $(seq 1 "$total_video_pages"); do
     page_data=$(curl -sS --connect-timeout 30 --max-time 60 "${COMMON_HEADERS[@]}" "$PAGE_URL")
   fi
 
-  # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting
+  # Extract all fields in one jq pass; caption is base64-encoded to survive TSV splitting.
+  # We use "_NONE_" as a sentinel for null/empty captions because bash read
+  # collapses consecutive tab delimiters, which shifts fields when a value is empty.
   while IFS=$'\t' read -r id b64caption date_str video_url; do
-    if [[ -n "$b64caption" ]]; then
+    if [[ "$b64caption" != "_NONE_" ]]; then
       caption=$(base64 -d <<< "$b64caption")
     else
       caption=""
@@ -302,7 +306,7 @@ for page in $(seq 1 "$total_video_pages"); do
     output_path="${VIDEO_DIR}/${filename}"
 
     download_video "$video_url" "$date_str" "$caption" "$id" "$output_path"
-  done < <(echo "$page_data" | jq -r '.videos[] | [.id, (.caption // "" | @base64), .date, .video_file_url] | @tsv')
+  done < <(echo "$page_data" | jq -r '.videos[] | [.id, (if (.caption // "") == "" then "_NONE_" else (.caption | @base64) end), .date, .video_file_url] | @tsv')
 done
 
 echo ""
